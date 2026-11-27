@@ -60,6 +60,11 @@ function bubbleColor(s) {
   return 'var(--hp)';
 }
 
+// 쉼표·가운뎃점으로 나눠 한 줄에 하나씩
+function lines(text, icon, cls) {
+  return String(text || '').split(/\s*(?:,|·)\s*(?![^()]*\))/).filter(Boolean)
+    .map((x) => `<span class="line small ${cls}"><span class="ic">${icon}</span>${esc(x)}</span>`).join('');
+}
 // 능력치 육각형
 function hexagon(stats, prev, size = 240) {
   const c = size / 2, R = size / 2 - 34;
@@ -124,11 +129,11 @@ const SCREENS = {
       body = `<h2>이름을 정해주세요</h2><p class="muted small">최대 8자. 비우면 랜덤 이름이 정해져요.</p>
         <input class="text-input" id="name" maxlength="8" value="${esc(c.name)}" placeholder="예: 김하루" autocomplete="off" />`;
     } else if (c.step === 1) {
-      body = `<h2>직군을 골라주세요</h2><div class="choice-grid four">${Object.entries(B.직군).map(([k, v]) => `
-        <button class="choice ${c.job === k ? 'on' : ''}" data-act="pickJob" data-v="${esc(k)}"><b>${JOB_ICON[k] || ''} ${esc(k)}</b><span class="small">👍 ${esc(v.강점)}</span><br><span class="small muted">👎 ${esc(v.약점)}</span></button>`).join('')}</div>`;
+      body = `<h2>직군을 골라주세요</h2><div class="choice-list">${Object.entries(B.직군).map(([k, v]) => `
+        <button class="choice ${c.job === k ? 'on' : ''}" data-act="pickJob" data-v="${esc(k)}"><b>${JOB_ICON[k] || ''} ${esc(k)}</b>${lines(v.강점, '👍', '')}${lines(v.약점, '👎', 'muted')}</button>`).join('')}</div>`;
     } else if (c.step === 2) {
-      body = `<h2>시작 배경</h2><div class="choice-grid four">${Object.entries(B.배경).map(([k, v]) => `
-        <button class="choice ${c.background === k ? 'on' : ''}" data-act="pickBg" data-v="${esc(k)}"><b>${esc(k)}</b><span class="small">${esc(v.설명)}</span></button>`).join('')}</div>`;
+      body = `<h2>시작 배경</h2><div class="choice-list">${Object.entries(B.배경).map(([k, v]) => `
+        <button class="choice ${c.background === k ? 'on' : ''}" data-act="pickBg" data-v="${esc(k)}"><b>${esc(k)}</b>${lines(v.설명, '•', '')}</button>`).join('')}</div>`;
     } else {
       body = `<h2>나는 어떤 사람일까?</h2><div class="stack">${B.성향_문답.map((q, qi) => `
         <div class="card"><h3>${qi + 1}. ${esc(q.질문)}</h3><div class="choice-grid">${q.선택.map((o, oi) => `
