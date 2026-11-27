@@ -53,6 +53,7 @@ export function replaceScore(B, s) {
   const J = B.직군[s.job] || {};
   v += J.대체보정 || 0;
   if (s.year >= 2028) v += J.대체보정_AI시대 || 0;
+  if (s.year >= 2028 && (s.rank === '사원' || s.rank === '대리')) v += J.대체보정_AI시대_주니어 || 0;
   return v;
 }
 export function replaceGrade(B, v) {
