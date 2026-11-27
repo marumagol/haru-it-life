@@ -47,17 +47,57 @@ function effPreview(eff) {
     return `<span class="${good ? 'u' : 'd'}">${esc(lab(k))} ${v > 0 ? '▲' : '▼'}</span>`;
   }).join('');
 }
-const JOB_COLOR = { 기획자: '#ffe1a8', 개발자: '#cfe0ff', 디자이너: '#ffd3e6', QA: '#d4f0d9' };
-const JOB_ICON = { 기획자: '📋', 개발자: '💻', 디자이너: '🎨', QA: '🔍' };
-function face(s) {
-  if (s.stats.스트레스 >= 70 || s.hp <= 30) return '😩';
-  if (s.lastGrade === 'S' || s.stats.스트레스 <= 20) return '😄';
-  return '🙂';
+const JOB_COLOR = { 기획자: 'var(--job-planner)', 개발자: 'var(--job-dev)', 디자이너: 'var(--job-designer)', QA: 'var(--job-qa)' };
+const JOB_KEY = { 기획자: 'planner', 개발자: 'dev', 디자이너: 'designer', QA: 'qa' };
+// 표정: 평소 / 지침(스트레스 70+ 또는 체력 30 이하) / 신남
+function mood(s) {
+  if (s.stats.스트레스 >= 70 || s.hp <= 30) return 'tired';
+  if (s.lastGrade === 'S' || s.lastGrade === 'A' || s.stats.스트레스 <= 20) return 'happy';
+  return '';
+}
+function sprite(job, m = '', scale = 3) {
+  const src = `assets/char-${JOB_KEY[job] || 'planner'}${m ? '-' + m : ''}.png`;
+  return `<img class="sprite" src="${src}" width="${18 * scale}" height="${21 * scale}" alt="${esc(job)} 캐릭터" />`;
 }
 function bubbleColor(s) {
   if (s.stats.스트레스 >= 90 || s.hp <= 15) return 'var(--stress)';
   if (s.stats.스트레스 >= 70 || s.hp <= 30) return 'var(--warn)';
   return 'var(--hp)';
+}
+function statusLine(s) {
+  if (s.leaveHalves > 0) return '휴직 중 · 쉬는 중';
+  if (s.stats.스트레스 >= 90) return '번아웃 직전…';
+  if (s.hp <= 15) return '쓰러지기 일보 직전';
+  if (s.stats.스트레스 >= 70) return '퇴사 각 재는 중';
+  if (s.hp <= 30) return '체력이 바닥났어';
+  if (s.lastGrade === 'S') return '요즘 날아다니는 중';
+  if (s.money < 0) return '통장이 텅장…';
+  return s.half === 1 ? '올해도 열일 모드' : '하반기도 버티는 중';
+}
+// Figma Office Map 좌표(1x 기준). 캐릭터 18×21, 화면에는 ×2
+const SCENES = {
+  중견: { img: 'office-mid', chars: { 기획자: [29, 48], 개발자: [65, 48], 디자이너: [112, 118], QA: [248, 132] } },
+  스타트업: { img: 'office-startup', chars: { 기획자: [33, 104], 개발자: [69, 104], QA: [150, 50], 디자이너: [152, 118] } },
+  대기업: { img: 'office-big', chars: { 기획자: [62, 92], QA: [134, 146], 개발자: [230, 74], 디자이너: [262, 74] } },
+};
+const SC = 2;
+function office(s) {
+  const sc = SCENES[s.company?.size] || SCENES.중견;
+  const [x, y] = sc.chars[s.job] || [160, 100];
+  const fresh = s.jobless?.reason === '취준';
+  const where = s.jobless ? (fresh ? '취준생' : '구직 중') : `${s.careerYears + 1}년차 · ${esc(s.rank)}`;
+  return `<div class="office" id="office"><div class="stage">
+      <img class="bg pixel" src="assets/${sc.img}.png" width="640" height="400" alt="${esc(s.company?.size || '')} 사무실" />
+      <div class="me" style="left:${x * SC}px;top:${y * SC}px">
+        <div class="say"><i style="background:${bubbleColor(s)}"></i>${esc(statusLine(s))}</div>
+        ${sprite(s.job, mood(s), SC)}
+      </div>
+      <div class="ohud">${s.year}년 · ${where}</div>
+    </div></div>`;
+}
+function scrollOffice() {
+  const o = document.getElementById('office'); const me = o?.querySelector('.me');
+  if (o && me) o.scrollLeft = Math.max(0, me.offsetLeft + 18 - o.clientWidth / 2);
 }
 
 // 쉼표·가운뎃점으로 나눠 한 줄에 하나씩
@@ -94,6 +134,7 @@ function render() {
   app.innerHTML = `<div class="screen">${fn()}</div>`;
   renderSheet();
   window.scrollTo({ top: 0 });
+  scrollOffice();
 }
 function renderSheet() {
   let html = '';
@@ -110,14 +151,14 @@ const SCREENS = {
       ${!storage ? '<div class="banner">이 환경에서는 저장되지 않아요. 창을 닫으면 진행이 사라져요.</div>' : ''}
       ${broken ? '<div class="banner">저장 데이터가 손상돼서 불러올 수 없어요. 새로 시작해주세요.</div>' : ''}
       <div class="logo">하루살이 IT 인생<small>신입부터 정년까지</small></div>
-      <div class="office-ph" aria-hidden="true">📋 💻 🎨 🔍</div>
+      <div class="landing-office" aria-hidden="true"><img class="pixel" src="assets/office-mid.png" alt="" /></div>
       <p class="muted">신입부터 정년까지, 살아남을 수 있을까?</p>
       <div class="stack" style="margin-top:20px">
         <button class="btn primary block" data-act="new">새 커리어 시작</button>
         ${state && state.phase !== 'ending' ? `<button class="btn block" data-act="continue">이어하기 <span class="muted small">${esc(state.name)} · ${state.age}세 · ${state.year}년</span></button>` : ''}
         <button class="btn ghost block" data-act="dev">⚙︎ 개발자 설정 (수치 조정)</button>
       </div>
-      <p class="muted small" style="margin-top:24px">프로토타입 v0.1 · 도트 그래픽 없이 단순 화면</p>
+      <p class="muted small" style="margin-top:24px">프로토타입 v0.2</p>
     </div>`;
   },
 
@@ -130,7 +171,7 @@ const SCREENS = {
         <input class="text-input" id="name" maxlength="8" value="${esc(c.name)}" placeholder="예: 김하루" autocomplete="off" />`;
     } else if (c.step === 1) {
       body = `<h2>직군을 골라주세요</h2><div class="choice-list">${Object.entries(B.직군).map(([k, v]) => `
-        <button class="choice ${c.job === k ? 'on' : ''}" data-act="pickJob" data-v="${esc(k)}"><b>${JOB_ICON[k] || ''} ${esc(k)}</b>${lines(v.강점, '👍', '')}${lines(v.약점, '👎', 'muted')}</button>`).join('')}</div>`;
+        <button class="choice ${c.job === k ? 'on' : ''}" data-act="pickJob" data-v="${esc(k)}"><div class="pick-head">${sprite(k, '', 2)}<b>${esc(k)}</b></div>${lines(v.강점, '👍', '')}${lines(v.약점, '👎', 'muted')}</button>`).join('')}</div>`;
     } else if (c.step === 2) {
       body = `<h2>시작 배경</h2><div class="choice-list">${Object.entries(B.배경).map(([k, v]) => `
         <button class="choice ${c.background === k ? 'on' : ''}" data-act="pickBg" data-v="${esc(k)}"><b>${esc(k)}</b>${lines(v.설명, '•', '')}</button>`).join('')}</div>`;
@@ -186,8 +227,8 @@ function statusPanel(s) {
   const st = s.company ? G.companyStatus(B, s.company.state) : '-';
   const rg = G.replaceGrade(B, G.replaceScore(B, s));
   return `<div class="card stack">
-    <div class="desk"><div class="avatar" style="background:${JOB_COLOR[s.job]}">${face(s)}<span class="bubble" style="background:${bubbleColor(s)}"></span></div>
-      <div><b>${esc(s.job)}</b> <span class="muted small">${esc(s.background)} 출신</span><div class="small muted">${s.boss ? `상사: ${esc(s.boss.type)}` : '상사 없음'} · 회사 분위기: ${esc(st)}</div>
+    <div class="desk"><div class="avatar-px">${sprite(s.job, mood(s), 3)}<span class="bubble" style="background:${bubbleColor(s)}"></span></div>
+      <div><b><span class="job-dot" style="background:${JOB_COLOR[s.job]}"></span>${esc(s.job)}</b> <span class="muted small">${esc(s.background)} 출신</span><div class="small muted">${s.boss ? `상사: ${esc(s.boss.type)}` : '상사 없음'} · 회사 분위기: ${esc(st)}</div>
       <div class="small muted">${esc(B.성향_힌트[s.trait])}</div></div></div>
     ${gauge('체력', s.hp, s.hpMax, 'var(--hp)', 30, true)}
     ${gauge('스트레스', s.stats.스트레스, 100, 'var(--stress)', 70, false)}
@@ -221,7 +262,7 @@ function mainScreen() {
       ${s.leaveHalves > 0 || s.jobless ? '' : `<button class="btn block" data-act="action" data-v="normal">평소처럼 보내기 <span class="muted small">체력·스트레스 조금 회복</span></button>`}
     </div>`;
   }
-  return `${hud(s)}<div class="main-grid"><div>${statusPanel(s)}</div><div class="side-sticky">${right}</div></div>`;
+  return `${hud(s)}<div class="main-grid"><div class="stack">${s.company ? office(s) : ''}${statusPanel(s)}</div><div class="side-sticky">${right}</div></div>`;
 }
 
 function shopPanel() {
