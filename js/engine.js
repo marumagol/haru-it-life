@@ -50,6 +50,9 @@ export function replaceScore(B, s) {
   if (s.lastGrade === 'D') v += R.고과D;
   if (s.stats.업계평판 >= 60) v += R.평판60이상;
   if (s.job === 'QA' && s.company && companyStatus(B, s.company.state) === '위기') v += R.QA_회사위기;
+  const J = B.직군[s.job] || {};
+  v += J.대체보정 || 0;
+  if (s.year >= 2028) v += J.대체보정_AI시대 || 0;
   return v;
 }
 export function replaceGrade(B, v) {
@@ -365,7 +368,7 @@ function applyCard(B, s, card) {
   for (const k in eff) {
     let v = eff[k];
     if (SKILLS.includes(k) && v > 0) v *= growthMult(B, s, card, k);
-    else if (k === '업계평판' && v > 0) v *= (B.배율.회사유형[s.company?.type] || {}).업계평판 || 1;
+    else if (k === '업계평판' && v > 0) v *= ((B.배율.회사유형[s.company?.type] || {}).업계평판 || 1) * (B.직군[s.job].평판성장배율 || 1);
     else if (k === '체력' && v < 0 && s.buffs.chair) v *= 0.8;
     else if (k === '스트레스' && v > 0 && card.id === 'overtime' && s.items.pet) v += 3;
     if (k === '스트레스' && v > 0) v = stressUp(B, s, v);
@@ -550,6 +553,8 @@ export function endYear(B, E, s) {
     if (st === '위기') dStress += BC.스트레스_회사위기;
     if (s.track === 'manager') dStress += BC.스트레스_관리자;
     if (isMismatch(B, s)) dStress += BC.스트레스_성향불일치;
+    dStress += B.직군[s.job].연말스트레스 || 0;
+    dHp += B.직군[s.job].연말체력 || 0;
   }
   if (s.year >= 2034 && s.trait === '워라밸형') dStress -= 3;
   if (dStress > 0) dStress = stressUp(B, s, dStress);
@@ -742,6 +747,7 @@ function promotionReview(B, s, grade, rep) {
     let pct = P.기본 + (P.고과보정[grade] || 0) + (P.규모보정[s.company.size] || 0);
     if (s.boss.type === '멘토형') pct += P.멘토형;
     if (s.boss.line) pct += P.정치형_라인;
+    if (r.트랙 === 'manager' || s.track === 'manager') pct += B.직군[s.job].관리자승진보정 || 0;
     if (chance(s, pct)) {
       if (r.to === '팀장') { s.postQueue.push({ id: 'TP02' }); rep.notes.push('팀장 제안이 들어올 것 같다.'); }
       else { promote(B, s, r.to, r.트랙 || null); rep.promoted = r.to; }
