@@ -172,8 +172,9 @@ const SCREENS = {
 };
 
 function hud(s) {
-  const comp = s.company ? `${esc(s.company.name)} <span class="muted">· ${esc(s.company.type)} · ${esc(s.company.size)}</span>` : '<span class="muted">구직 중</span>';
-  return `<div class="hud"><div><div class="who">${esc(s.name)} · ${s.age}세 · ${s.careerYears + 1}년차 · ${esc(s.rank)}</div><div class="meta">${s.year}년 · ${comp}</div></div>
+  const fresh = s.jobless?.reason === '취준';
+  const comp = s.company ? `${esc(s.company.name)} <span class="muted">· ${esc(s.company.type)} · ${esc(s.company.size)}</span>` : `<span class="muted">${fresh ? '취업 준비 중' : '구직 중'}</span>`;
+  return `<div class="hud"><div><div class="who">${esc(s.name)} · ${s.age}세 · ${fresh ? '취준생' : `${s.careerYears + 1}년차 · ${esc(s.rank)}`}</div><div class="meta">${s.year}년 · ${comp}</div></div>
     <div class="row"><button class="icon-btn" data-act="info" aria-label="내 정보">내 정보</button><button class="icon-btn" data-act="home" aria-label="처음 화면">⌂</button></div></div>`;
 }
 function statusPanel(s) {
@@ -201,7 +202,7 @@ function mainScreen() {
   let right = '';
   if (s.phase === 'shop') right = shopPanel();
   else {
-    const title = s.leaveHalves > 0 ? '휴직 중이에요' : s.jobless ? `구직 중 (${s.jobless.halves}/${B.구직.최대년수 * 2}반기)` : `${s.half === 1 ? '상반기' : '하반기'} 행동을 고르세요`;
+    const title = s.leaveHalves > 0 ? '휴직 중이에요' : s.jobless?.reason === '취준' ? `취업 준비 ${s.jobless.halves + 1}번째 반기` : s.jobless ? `구직 중 (${s.jobless.halves}/${B.구직.최대년수 * 2}반기)` : `${s.half === 1 ? '상반기' : '하반기'} 행동을 고르세요`;
     const cards = s.cards.map((c) => {
       const rep = G.repeatCount(s, c.id);
       return `<div class="act"><div class="row" style="justify-content:space-between"><h3>${esc(c.이름)}</h3>${rep >= 2 ? '<span class="badge">요즘 매너리즘</span>' : ''}</div>
@@ -255,8 +256,8 @@ function eventSheet() {
 
 function companyScreen() {
   const s = S;
-  const title = s.careerYears === 0 && !s.jobless && s.history.length === 0 ? '합격 통보가 왔어요! 첫 회사를 골라주세요' : '입사할 회사를 골라주세요';
-  return `${s.history.length ? hud(s) : ''}<h2>${title}</h2><div class="grid2">${s.offers.map((o, i) => `
+  const title = s.jobless?.reason === '취준' ? '합격 통보가 왔어요! 첫 회사를 골라주세요' : '입사할 회사를 골라주세요';
+  return `${hud(s)}<h2>${title}</h2><div class="grid2">${s.offers.map((o, i) => `
     <div class="card stack"><div><b style="font-size:18px">${esc(o.name)}</b></div>
       <div class="row"><span class="chip">${esc(o.type)}</span><span class="chip">${esc(o.size)}</span>${o.rank !== s.rank ? `<span class="chip up">${esc(o.rank)} 제안</span>` : ''}</div>
       <div class="num">연봉 <b>${G.formatMoney(o.salary)}</b></div>
@@ -268,7 +269,7 @@ function companyScreen() {
 function reportScreen() {
   const s = S, r = s.report;
   const awards = r.awards.length ? `<div class="card stack"><h3>🏆 연말 시상식</h3><div class="row">${r.awards.map((a) => `<span class="award">🏆 ${esc(a)}</span>`).join('')}</div></div>` : '';
-  const gradeBlock = r.grade ? `<div class="row" style="gap:16px"><div class="grade ${r.grade}">${r.grade}</div><div class="small muted">역량 점수 ${r.score} / 직급 기대치 ${r.expect}<br>${r.promoted ? `<b style="color:var(--up)">🎉 ${esc(r.promoted)} 승진!</b>` : r.promoFailed ? '승진 심사에서 떨어졌어요.' : ''}</div></div>` : '<p>올해는 구직 중이라 고과가 없어요.</p>';
+  const gradeBlock = r.grade ? `<div class="row" style="gap:16px"><div class="grade ${r.grade}">${r.grade}</div><div class="small muted">역량 점수 ${r.score} / 직급 기대치 ${r.expect}<br>${r.promoted ? `<b style="color:var(--up)">🎉 ${esc(r.promoted)} 승진!</b>` : r.promoFailed ? '승진 심사에서 떨어졌어요.' : ''}</div></div>` : `<p>올해는 ${s.jobless?.reason === '취준' ? '취업 준비 중' : '구직 중'}이라 고과가 없어요.</p>`;
   const moneyLine = `<dl class="kv num"><dt>받은 연봉</dt><dd>${G.formatMoney(r.pay)}${r.bonus ? ` + 성과급 ${G.formatMoney(r.bonus)}` : ''}</dd><dt>생활비</dt><dd>-${G.formatMoney(r.living)}${r.upkeep ? ` · 유지비 -${G.formatMoney(r.upkeep)}` : ''}</dd>
     <dt>통장 변화</dt><dd>${r.moneyDelta >= 0 ? '+' : ''}${G.formatMoney(r.moneyDelta)} → ${G.formatMoney(s.money)}</dd>
     ${r.grade ? `<dt>내년 연봉</dt><dd>${G.formatMoney(r.salaryNext)} <span class="muted">(${r.salaryNext >= r.salaryOld ? '+' : ''}${(((r.salaryNext - r.salaryOld) / Math.max(1, r.salaryOld)) * 100).toFixed(0)}%)</span></dd>` : ''}

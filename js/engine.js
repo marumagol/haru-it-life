@@ -144,21 +144,36 @@ export function newGame(B, E, opt) {
   // 동기 2명
   const names = shuffle(s, PEER_NAMES);
   for (let i = 0; i < 2; i++) s.peers.push({ name: names[i], rank: '사원', yearsInRank: 0, salary: 0, job: pick(s, Object.keys(B.직군)) });
-  s.offers = makeOffers(B, s, bg.회사제안수 || 3, null);
-  s.phase = 'company';
+  // 취업 준비생으로 시작
+  s.jobless = { reason: '취준', halves: 0, lastSalary: 0 };
+  startYear(B, E, s);
   return s;
 }
 
 function makeCompanyName(B, s) {
   return '(주)' + pick(s, B.회사.이름_앞) + pick(s, B.회사.이름_뒤);
 }
-function makeOffers(B, s, n, from) {
+// 첫 취업·재취업 때 회사 규모: 대기업은 스펙이 좋아야 드물게
+function specScore(s) { return s.stats.실무력 + s.stats.소통력 + s.stats.트렌드; }
+function pickSize(B, s, smallOnly) {
+  if (smallOnly) return rand(s) < 0.6 ? '스타트업' : '중견';
+  const F = B.첫취업;
+  const first = s.jobless?.reason === '취준' || !s.history.some((h) => h.company !== '구직 중');
+  let big = first ? (F.대기업확률[s.background] ?? 10) + Math.max(0, specScore(s) - F.합격_스펙기준) * F.대기업_스펙계수
+    : (B.재취업_대기업확률 ?? 10) + s.stats.업계평판 / 3;
+  big = clamp(big, 0, 60);
+  const r = rand(s) * 100;
+  if (r < big) return '대기업';
+  if (r < big + F.중견확률) return '중견';
+  return '스타트업';
+}
+function makeOffers(B, s, n, from, smallOnly) {
   const out = [];
   const used = new Set();
   while (out.length < n) {
     const type = pick(s, B.회사.유형);
-    const size = pick(s, B.회사.규모);
-    if (used.has(type + size)) continue;
+    const size = from ? pick(s, B.회사.규모) : pickSize(B, s, smallOnly);
+    if (used.has(type + size)) { if (used.size > 40) break; continue; }
     used.add(type + size);
     const base = Math.round(B.회사.초봉[type][size] * B.직군[s.job].연봉배율);
     let salary = base;
@@ -198,7 +213,7 @@ export function chooseCompany(B, E, s, idx) {
   newBoss(B, s);
   s.offers = null;
   s.log.push(`${s.year}년 ${o.name} 입사 (${o.type} · ${o.size})`);
-  if (s.careerYears > 0 || wasJobless) s.moves += 1;
+  if (s.careerYears > 0 || (wasJobless && s.jobless?.reason !== '취준')) s.moves += 1;
   s.jobless = null;
   if (s.phase === 'company' && s.yearStart == null) { startYear(B, E, s); return; }
   // 연중(구직 성공) 입사: 다음 반기로 이어감
@@ -386,15 +401,21 @@ export function chooseAction(B, E, s, cardId) {
   if (s.jobless) {
     s.jobless.halves += 1;
     const J = B.구직;
-    const pct = J.기본확률 + s.stats.실무력 * J.실무력계수 + s.stats.업계평판 * J.업계평판계수 + (card.구직보너스 || 0);
-    if (chance(s, pct)) {
-      s.queue.push({ notice: { 이름: '합격 연락', 상황: '면접 본 회사에서 연락이 왔다! 입사할 회사를 골라요.' } });
-      const base = s.jobless.lastSalary || s.salary || 3000;
-      s.offers = makeOffers(B, s, 2, null).map((o) => ({ ...o, salary: Math.max(o.salary, Math.round(base * J.재취업_연봉배율)) }));
+    const F = B.첫취업;
+    const fresh = s.jobless.reason === '취준';
+    const pct = fresh
+      ? F.합격_기본확률 + (specScore(s) - F.합격_스펙기준) * F.합격_스펙계수 + (card.구직보너스 || 0)
+      : J.기본확률 + s.stats.실무력 * J.실무력계수 + s.stats.업계평판 * J.업계평판계수 + (card.구직보너스 || 0);
+    const lastTry = fresh && s.jobless.halves >= F.최대반기;
+    if (chance(s, pct) || lastTry) {
+      const msg = lastTry ? '지원서만 수십 장. 드디어 작은 회사 한 곳에서 연락이 왔다.' : fresh ? '최종 합격 문자가 왔다! 입사할 회사를 골라요.' : '면접 본 회사에서 연락이 왔다! 입사할 회사를 골라요.';
+      s.queue.push({ notice: { 이름: '합격 연락', 상황: msg } });
+      const base = s.jobless.lastSalary || 0;
+      s.offers = makeOffers(B, s, lastTry ? 1 : fresh ? F.제안수 : 2, null, lastTry).map((o) => ({ ...o, salary: Math.max(o.salary, Math.round(base * J.재취업_연봉배율)) }));
       s.after = 'company';
       return proceed(B, E, s);
     }
-    if (s.jobless.halves >= J.최대년수 * 2) {
+    if (!fresh && s.jobless.halves >= J.최대년수 * 2) {
       s.ending = s.jobless.reason === '부도' ? 'END-F4' : 'END-F2';
       return finalize(B, s, 'fixed');
     }
@@ -586,7 +607,7 @@ export function endYear(B, E, s) {
 
   // 5) 연봉 지급
   const L = B.연봉;
-  const living = Math.max(L.생활비최소, Math.round((s.salary || 0) * L.생활비비율));
+  const living = s.jobless?.reason === '취준' ? B.첫취업.생활비 : Math.max(L.생활비최소, Math.round((s.salary || 0) * L.생활비비율));
   let pay = s.salary;
   if (s.leaveThisYear >= 2) pay *= L.휴직_지급비율; else if (s.leaveThisYear === 1) pay *= 0.75;
   if (s.unpaid) { pay *= 1 - B.위기.월급밀림_미지급비율; rep.notes.push('월급이 밀려 연봉 일부를 받지 못했다.'); }
