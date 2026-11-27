@@ -684,7 +684,7 @@ export function endYear(B, E, s) {
     const H = B.헤드헌터;
     let pct = H.기본확률 + s.hhBoost;
     if (s.stats.실무력 >= 60) pct += H.실무력60;
-    if (s.job === '개발자') pct += H.개발자;
+    pct += B.직군[s.job].헤드헌터보정 || 0;
     if (s.failPromoFlag) pct += H.승진누락;
     if (st === '경고' || st === '위기') pct += H.회사경고;
     if (s.moves >= H.이직많음_기준) pct += H.이직많음;
