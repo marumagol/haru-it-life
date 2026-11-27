@@ -209,7 +209,7 @@ export function chooseCompany(B, E, s, idx) {
 // ---------- 연도 시작 ----------
 function startYear(B, E, s) {
   s.yearStart = { stats: { ...s.stats }, hp: s.hp, money: s.money, salary: s.salary };
-  s.gradePts = 0; s.yearCards = {}; s.unpaid = false; s.leaveThisYear = 0;
+  s.gradePts = 0; s.yearCards = {}; s.yearBuys = 0; s.unpaid = false; s.leaveThisYear = 0;
   s.half = 1; s.queue = [];
   // 시대 이벤트
   for (const er of B.시대이벤트) if (er.연도 === s.year) {
@@ -490,7 +490,11 @@ function promote(B, s, to, track) {
 }
 
 // ---------- 상점 ----------
+export function buysLeft(B, s) {
+  return Math.max(0, (B.상점_연간구매횟수 ?? 99) - (s.yearBuys || 0));
+}
 export function canBuy(B, s, item) {
+  if (buysLeft(B, s) <= 0) return false;
   if (s.money < item.가격) return false;
   if (!item.소모품 && s.items[item.id]) return false;
   return true;
@@ -500,6 +504,7 @@ export function buyItem(B, s, id) {
   if (!it || !canBuy(B, s, it)) return null;
   const before = snapshot(s);
   s.money -= it.가격;
+  s.yearBuys = (s.yearBuys || 0) + 1;
   if (it.즉시) applyEffects(B, s, it.즉시);
   if (it.버프) s.buffs[it.버프] = true;
   if (!it.소모품) s.items[it.id] = { years: 0, value: it.id === 'house' ? it.가격 : undefined };

@@ -223,6 +223,7 @@ function shopPanel() {
   const tabs = [...new Set(B.상점.map((x) => x.탭))];
   const items = B.상점.filter((x) => x.탭 === ui.shopTab);
   return `<div class="card stack">${phaseDots(s)}<h2>상점</h2><p class="small muted">잔액 <b class="num">${G.formatMoney(s.money)}</b> · 연봉은 연말에 한 번에 들어와요.</p>
+    <p class="small">${G.buysLeft(B, s) > 0 ? `올해 살 수 있는 물건: <b>${G.buysLeft(B, s)}개</b> 남음` : '<b>올해는 이미 하나 샀어요.</b> 내년에 다시 들러주세요.'}</p>
     <div class="tabs">${tabs.map((t) => `<button class="tab ${t === ui.shopTab ? 'on' : ''}" data-act="shopTab" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
     <div>${items.map((it) => {
       const own = !it.소모품 && s.items[it.id];
