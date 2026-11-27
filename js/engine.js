@@ -66,12 +66,13 @@ export function competence(B, s) {
   for (const k in w) v += s.stats[k] * w[k];
   return v;
 }
-export function judgeChance(B, s, check) {
+export function judgeChance(B, s, check, ev) {
   if (!check) return 100;
   if (check.확률 != null) return check.확률;
   const J = B.판정;
   let c = J.기본 + (s.stats[check.능력치] - check.요구);
   if (check.위기) c += s.stats.멘탈 * B.위기.멘탈_회복판정계수;
+  if (ev?.분류 === '직군') c += B.직군[s.job]?.직군이벤트_판정보너스 || 0;
   return clamp(c, J.최소, J.최대);
 }
 export function judgeBadge(B, pct) {
@@ -433,7 +434,7 @@ export function chooseEventOption(B, E, s, idx) {
   const opt = eventChoices(E, ev)[idx];
   const before = snapshot(s);
   let success = true, judged = false;
-  if (opt.판정) { judged = true; success = rand(s) * 100 < judgeChance(B, s, opt.판정); }
+  if (opt.판정) { judged = true; success = rand(s) * 100 < judgeChance(B, s, opt.판정, ev); }
   let eff = { ...(opt.효과 || {}) };
   const add = judged ? (success ? opt.성공 : opt.실패) : null;
   if (add) for (const k in add) eff[k] = (eff[k] || 0) + add[k];

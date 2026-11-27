@@ -247,7 +247,7 @@ function eventSheet() {
   }
   const opts = G.eventChoices(E, ev).map((o, i) => {
     let badge = '';
-    if (o.판정) { const p = G.judgeChance(B, s, o.판정); const b = G.judgeBadge(B, p); badge = `<span class="badge ${b === '자신 있음' ? 'ok' : b === '해볼 만함' ? 'mid' : 'bad'}">${b}</span>`; }
+    if (o.판정) { const p = G.judgeChance(B, s, o.판정, ev); const b = G.judgeBadge(B, p); badge = `<span class="badge ${b === '자신 있음' ? 'ok' : b === '해볼 만함' ? 'mid' : 'bad'}">${b}</span>`; }
     return `<button class="btn block opt" data-act="evOpt" data-v="${i}"><span>${esc(o.글)}</span>${badge}</button>`;
   }).join('');
   return `<div class="sheet">${who}<p>${esc(ev.상황)}</p>${ev.되돌릴수없음 ? '<p class="irrev">이 선택은 되돌릴 수 없어요.</p>' : ''}<div class="stack">${opts}</div></div>`;
