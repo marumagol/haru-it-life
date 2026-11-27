@@ -102,7 +102,7 @@ function scrollOffice() {
 
 // 쉼표·가운뎃점으로 나눠 한 줄에 하나씩
 function lines(text, icon, cls) {
-  return String(text || '').split(/\s*(?:,|·)\s*(?![^()]*\))/).filter(Boolean)
+  return String(text || '').split(/\s*(?:,(?!\d{3})|·)\s*(?![^()]*\))/).filter(Boolean)
     .map((x) => `<span class="line small ${cls}"><span class="ic">${icon}</span>${esc(x)}</span>`).join('');
 }
 // 능력치 육각형
