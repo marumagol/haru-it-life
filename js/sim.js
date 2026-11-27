@@ -21,7 +21,7 @@ export function playOne(B, E, strategy = '무작위', seed) {
   const r = () => { x = (x * 1664525 + 1013904223) >>> 0; return x / 4294967296; };
   const s = G.newGame(B, E, {
     seed: x, name: '시뮬', job: JOBS[Math.floor(r() * 4)], background: BGS[Math.floor(r() * 4)],
-    answers: [0, 1, 2].map(() => (r() < 0.5 ? 0 : 1)),
+    answers: B.성향_문답.map(() => (r() < 0.5 ? 0 : 1)),
   });
   let guard = 0;
   while (s.phase !== 'ending' && guard++ < 2000) {
