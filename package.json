@@ -1,0 +1,1 @@
+{"type":"module","private":true,"scripts":{"sim":"node tools/sim.mjs"}}
