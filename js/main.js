@@ -260,6 +260,7 @@ function mainScreen() {
       ${s.lastAction ? `<div class="last-action">지난 반기: ${esc(s.lastAction.name)}</div><div class="chips">${deltaChips(s.lastAction.deltas)}</div>` : ''}
       <div class="action-cards">${cards}</div>${noOT}
       ${s.leaveHalves > 0 || s.jobless ? '' : `<button class="btn block" data-act="action" data-v="normal">평소처럼 보내기 <span class="muted small">체력·스트레스 조금 회복</span></button>`}
+      ${G.canJobHunt(s) ? (() => { const p = G.jobHuntChance(B, s); const b = G.judgeBadge(B, p); return `<button class="btn block opt" data-act="action" data-v="jobhunt"><span>💼 이직 준비하기 <span class="muted small">스트레스↑ · 붙으면 바로 옮길 수 있어요${s.huntStreak ? ` · ${s.huntStreak}번째 도전` : ''}</span></span><span class="badge ${b === '자신 있음' ? 'ok' : b === '해볼 만함' ? 'mid' : 'bad'}">${b}</span></button>`; })() : ''}
     </div>`;
   }
   return `${hud(s)}<div class="main-grid"><div class="stack">${s.company ? office(s) : ''}${statusPanel(s)}</div><div class="side-sticky">${right}</div></div>`;
@@ -337,7 +338,8 @@ function reportScreen() {
 
 function offersScreen() {
   const s = S;
-  return `${hud(s)}<h2>📞 헤드헌터의 연락</h2><p class="muted">"좋은 자리가 있는데, 한번 들어보실래요?" 지금 연봉 ${G.formatMoney(s.salary)}</p>
+  const mine = s.offers[0]?.src === 'apply';
+  return `${hud(s)}<h2>${mine ? '✉️ 최종 합격 연락' : '📞 헤드헌터의 연락'}</h2><p class="muted">${mine ? '직접 지원한 회사에서 처우를 제안했어요.' : '"좋은 자리가 있는데, 한번 들어보실래요?"'} 지금 연봉 ${G.formatMoney(s.salary)}</p>
     <div class="grid2">${s.offers.map((o, i) => `<div class="card stack"><b style="font-size:18px">${esc(o.name)}</b>
       <div class="row"><span class="chip">${esc(o.type)}</span><span class="chip">${esc(o.size)}</span><span class="chip ${o.rank !== s.rank ? 'up' : ''}">${esc(o.rank)}</span></div>
       <div class="num">제안 연봉 <b>${G.formatMoney(o.salary)}</b></div><div class="small muted">${o.mood.map(esc).join(' · ')}</div>

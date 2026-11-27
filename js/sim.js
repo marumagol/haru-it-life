@@ -12,6 +12,7 @@ function policyCard(s, strategy, r) {
     if (s.stats.스트레스 >= 60 && ids.includes('rest')) return 'rest';
     if (s.stats.스트레스 >= 60) return 'normal';
   }
+  if (G.canJobHunt(s) && r() < 0.08) return 'jobhunt';
   const all = ids.concat(['normal']);
   return all[Math.floor(r() * all.length)];
 }

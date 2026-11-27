@@ -171,7 +171,7 @@ function pickSize(B, s, smallOnly) {
   if (r < big + F.중견확률) return '중견';
   return '스타트업';
 }
-function makeOffers(B, s, n, from, smallOnly) {
+function makeOffers(B, s, n, from, smallOnly, raise) {
   const out = [];
   const used = new Set();
   while (out.length < n) {
@@ -183,12 +183,12 @@ function makeOffers(B, s, n, from, smallOnly) {
     let salary = base;
     let rank = s.rank;
     if (from) {
-      const H = B.헤드헌터;
+      const H = raise || B.헤드헌터;
       const pct = H.기본인상 + Math.min(H.최대인상 - H.기본인상, Math.max(0, (s.stats.업계평판 - 30) / 4));
       const raised = Math.round(from * (1 + pct / 100));
       const rankBoost = Math.pow(1.12, B.직급[s.rank].높이 - 1);
       salary = Math.max(raised, Math.round(base * rankBoost));
-      if (s.stats.업계평판 >= H.직급업_평판 && chance(s, H.직급업_확률) && NEXT_RANK[s.rank] && !(s.rank === '과장')) {
+      if (!raise && s.stats.업계평판 >= H.직급업_평판 && chance(s, H.직급업_확률) && NEXT_RANK[s.rank] && !(s.rank === '과장')) {
         rank = NEXT_RANK[s.rank];
         salary = Math.round(salary * 1.1);
       }
@@ -381,6 +381,18 @@ function applyCard(B, s, card) {
 }
 
 // ---------- 행동 선택 ----------
+// 재직 중 직접 이직 시도 성공 확률(%)
+export function jobHuntChance(B, s) {
+  const J = B.이직시도;
+  let p = J.기본확률 + s.stats.실무력 * J.실무력계수 + s.stats.업계평판 * J.업계평판계수 + J.연속준비보너스 * Math.min(2, s.huntStreak || 0);
+  if ((s.yearsInCompany || 0) < 1) p += J.입사1년미만;
+  if (s.moves >= B.헤드헌터.이직많음_기준) p += J.이직많음;
+  if (s.age >= 50) p += J.나이50이상; else if (s.age >= 45) p += J.나이45이상;
+  if (s.year >= 2031 && s.year <= 2032) p += J.불황기;
+  return clamp(Math.round(p), 3, 85);
+}
+export function canJobHunt(s) { return !!s.company && !s.jobless && !(s.leaveHalves > 0) && !s.extended; }
+
 export function chooseAction(B, E, s, cardId) {
   const before = snapshot(s);
   let card;
@@ -390,7 +402,7 @@ export function chooseAction(B, E, s, cardId) {
     card = { id: 'leave', 이름: '쉬어가기', 효과: { 체력: 8, 스트레스: -8 } };
     applyRaw(s, card.효과);
   } else {
-    card = cardId === 'normal' ? B.평소처럼 : (s.cards.find((c) => c.id === cardId) || B.구직카드.find((c) => c.id === cardId));
+    card = cardId === 'normal' ? B.평소처럼 : cardId === 'jobhunt' ? B.이직시도.카드 : (s.cards.find((c) => c.id === cardId) || B.구직카드.find((c) => c.id === cardId));
     applyCard(B, s, card);
     s.cardHist.push(card.id);
     s.yearCards[card.id] = (s.yearCards[card.id] || 0) + 1;
@@ -428,6 +440,23 @@ export function chooseAction(B, E, s, cardId) {
     const list = (s.planned?.[half] || []).filter((id) => { const ev = eventById(E, id); return ev && eligible(B, s, ev); });
     if (chance(s, B.이벤트확률.일상_반기)) { const ev = pickEvent(B, E, s, '일상'); if (ev && !list.includes(ev.id)) list.unshift(ev.id); }
     for (const id of list.slice(0, B.이벤트확률.반기당_최대)) s.queue.push({ id });
+    if (cardId === 'jobhunt') {
+      const J = B.이직시도;
+      if (chance(s, jobHuntChance(B, s))) {
+        s.huntStreak = 0;
+        s.queue.push({ notice: { 이름: '최종 합격', 상황: '몰래 면접 본 회사에서 최종 합격 연락이 왔다! 옮길지 남을지 정해요.' } });
+        s.pendingOffers = makeOffers(B, s, J.제안수, s.salary, false, J).map((o) => ({ ...o, src: 'apply' }));
+        s.offersAfter = half === 1 ? 'half2' : 'shop';
+        checkThresholds(B, s);
+        s.after = 'offers';
+        return proceed(B, E, s);
+      }
+      s.huntStreak = (s.huntStreak || 0) + 1;
+      if (chance(s, J.들킬확률)) {
+        s.stats.사내입지 = clamp(s.stats.사내입지 + J.들킴_사내입지, 0, 100);
+        s.queue.push({ notice: { 이름: '서류·면접 탈락… 그리고', 상황: `이번엔 붙지 못했다. 게다가 면접 보러 간 걸 팀장이 눈치챈 것 같다. (사내 입지 ${J.들킴_사내입지})` } });
+      } else s.queue.push({ notice: { 이름: '이번엔 탈락', 상황: '서류는 붙었지만 최종에서 떨어졌다. 계속 준비하면 다음엔 조금 더 유리해요.' } });
+    }
   }
   checkThresholds(B, s);
   s.after = half === 1 ? 'half2' : 'shop';
@@ -840,7 +869,9 @@ export function chooseOffer(B, E, s, action, idx) {
     s.log.push(`${s.year}년 ${s.company.name} 퇴사 → 이직`);
     s.offers = [o];
     s.phase = 'company';
-    s.yearStart = null;
+    if (!s.offersAfter) s.yearStart = null;
+    s.offersAfter = null;
+    s.huntStreak = 0;
     return chooseCompany(B, E, s, 0);
   }
   if (action === 'counter') {
@@ -851,7 +882,8 @@ export function chooseOffer(B, E, s, action, idx) {
     s.offerResult = ok ? '카운터오퍼 성공! 연봉이 올랐다. 대신 눈치가 보인다.' : '회사는 붙잡지 않았다. 그냥 남기로 했다.';
   }
   s.offers = null;
-  s.after = 'nextyear';
+  s.after = s.offersAfter || 'nextyear';
+  s.offersAfter = null;
   proceed(B, E, s);
 }
 
